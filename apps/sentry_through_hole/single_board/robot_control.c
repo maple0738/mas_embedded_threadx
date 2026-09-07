@@ -7,7 +7,7 @@
  * @Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
  */
 #include "bsp_def.h"
-#include "hero_def.h"
+#include "sentry_through_hole_def.h"
 #include "chassis_func.h"
 #include "robot_func.h"
 #include "gimbal_func.h"

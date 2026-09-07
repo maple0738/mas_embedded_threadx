@@ -9,7 +9,7 @@
 #ifndef _CHASSIS_FUNC_H_
 #define _CHASSIS_FUNC_H_
 
-#include "hero_def.h"
+#include "sentry_through_hole_def.h"
 
 
 void chassis_init(void);

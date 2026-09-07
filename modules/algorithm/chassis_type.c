@@ -132,7 +132,7 @@ void Chassis_Omni_Calc(DJI_Motor_t *motors[4], const Chassis_Diff_Config_s *cfg,
     wheel_speed[2] = ((vx * SQRT2_2  - vy * SQRT2_2) + vw * radius)*speed_factor;
     wheel_speed[3] = ((vx * SQRT2_2  + vy * SQRT2_2) + vw * radius)*speed_factor;
 
-    for (int i = 0; i < 4; i++) Motor_DJI_SetRef(motors[i], wheel_speed[i]);
+    for (int i = 0; i < 4; i++) Motor_SetRef((Motor_Base *)motors[i], wheel_speed[i]);
 }
 
 

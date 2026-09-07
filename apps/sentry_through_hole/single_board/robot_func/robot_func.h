@@ -1,15 +1,15 @@
 /*
  * @Author: laladuduqq 2807523947@qq.com
  * @Date: 2026-05-14 16:11:04
- * @LastEditors: laladuduqq 2807523947@qq.com
- * @LastEditTime: 2026-05-23 16:32:50
+ * @LastEditors: maple0738 1573764313@qq.com
+ * @LastEditTime: 2026-09-07 22:12:35
  * @FilePath: /mas_embedded_threadx/apps/infantry3/single_board/robot_func/robot_func.h
  * @Description:
  */
 #ifndef _ROBOT_FUNC_H_
 #define _ROBOT_FUNC_H_
 
-#include "hero_def.h"
+#include "sentry_through_hole_def.h"
 
 /**
  * @brief 计算相对于对齐角度的最小旋转角度，返回编码器差值
