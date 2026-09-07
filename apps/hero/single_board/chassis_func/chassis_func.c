@@ -1,0 +1,180 @@
+/*
+ * @Author: maple0738 1573764313@qq.com
+ * @Date: 2026-07-17 19:03:11
+ * @LastEditors: maple0738 1573764313@qq.com
+ * @LastEditTime: 2026-09-07 18:13:36
+ * @FilePath: \mas_embedded_threadx\apps\mailun\single_board\chassis_func\chassis_func.c
+ * @Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
+ */
+#include "chassis_func.h"
+#include <stdint.h>
+#include "motor_dji.h"
+#include "chassis_type.h"
+#include "user_lib.h"
+
+
+#define LOG_TAG "app_chassis"
+#define LOG_LVL LOG_LVL_DBG
+#include "ulog_def.h"
+
+static DJI_Motor_t                *chassis_motors[4];
+static float                       chassis_vx, chassis_vy, chassis_wz; // 将云台系的速度投影到底盘
+static PIDInstance                 chassis_follow_pid;
+static const Chassis_Diff_Config_s chassis_diff_config = {.decele_ratio = 15.7647f, .wheel_base_x = 0.3903f, .wheel_base_y = 0.3903f, .wheel_radius = 0.07,.chassis_radius = 27.6f / 100.0f}; // HERO 底盘几何参数
+
+
+void chassis_init(void)
+{
+    PID_Init_Config_s config = {
+        .MaxOut = 5, .IntegralLimit = 0.01, .DeadBand = 5, .Kp = 0.2, .Ki = 0, .Kd = 0.01, .Improve = 0x01}; // enable integratiaon limit
+    PIDInit(&chassis_follow_pid, &config);
+
+        Motor_Init_Config_s chassis_motor_config ={
+            
+            .offline_init_config =
+                {
+                    .timeout_ms = 100,
+                    .enable     = 1,
+                },
+            .transport = MOTOR_TRANSPORT_CAN,
+            .transport_config =
+                {
+                    .can.hcan = BSP_CAN_HANDLE1,
+                },
+            .controller_init_config =
+                {
+                    .speed_PID =
+                        {
+                            .MaxOut        = 5,
+                            .IntegralLimit = 0.01,
+                            .DeadBand      = 10,
+                            .Kp            = 0.01,
+                            .Ki            = 0,
+                            .Kd            = 0,
+                            .Improve       = 0x01, // enable integratiaon limit
+                        }
+                },
+            .setting_init_config =
+                {
+                .angle_feedback_source = 0,
+                .speed_feedback_source = 0,
+                .loop_type             = SPEED_LOOP,
+                .feedback_reverse_flag = 0,
+                .algorithm_type        = CONTROL_PID,
+                },
+            .motor_init_info = {.motor_type = M3508, .gear_ratio = 16, .max_torque = 5.32, .torque_constant = 0.016},
+                
+            
+        };
+
+    chassis_motor_config.transport_config.can.tx_id             = 2;
+    chassis_motor_config.setting_init_config.motor_reverse_flag = 0;
+    chassis_motor_config.offline_init_config.name               = "m3508_2";
+    chassis_motor_config.offline_init_config.beep_times         = 2;
+    chassis_motors[0]                                           = Motor_DJI_Init(&chassis_motor_config);
+    if (chassis_motors[0] == NULL)
+    {
+        LOG_E("chassis motor[0] init failed");
+        return;
+    }
+
+    chassis_motor_config.transport_config.can.tx_id             = 1;
+    chassis_motor_config.setting_init_config.motor_reverse_flag = 0;
+    chassis_motor_config.offline_init_config.name               = "m3508_1";
+    chassis_motor_config.offline_init_config.beep_times         = 1;
+    chassis_motors[1]                                           = Motor_DJI_Init(&chassis_motor_config);
+    if (chassis_motors[1] == NULL)
+    {
+        LOG_E("chassis motor[1] init failed");
+        return;
+    }
+
+    chassis_motor_config.transport_config.can.tx_id             = 3;
+    chassis_motor_config.setting_init_config.motor_reverse_flag = 0;
+    chassis_motor_config.offline_init_config.name               = "m3508_3";
+    chassis_motor_config.offline_init_config.beep_times         = 3;
+    chassis_motors[2]                                           = Motor_DJI_Init(&chassis_motor_config);
+    if (chassis_motors[2] == NULL)
+    {
+        LOG_E("chassis motor[2] init failed");
+        return;
+    }
+
+    chassis_motor_config.transport_config.can.tx_id             = 4;
+    chassis_motor_config.setting_init_config.motor_reverse_flag = 0;
+    chassis_motor_config.offline_init_config.name               = "m3508_4";
+    chassis_motor_config.offline_init_config.beep_times         = 4;
+    chassis_motors[3]                                           = Motor_DJI_Init(&chassis_motor_config);
+    if (chassis_motors[3] == NULL)
+    {
+        LOG_E("chassis motor[3] init failed");
+        return;
+    }
+
+    LOG_I("Chassis initialized");
+}
+
+void chassis_func(Chassis_Ctrl_Cmd_t *chassis_cmd)
+{
+
+      if (chassis_cmd != NULL)
+    {
+        if (!Module_Offline_get_device_status(chassis_motors[0]->base.offline_dev) &&
+            !Module_Offline_get_device_status(chassis_motors[1]->base.offline_dev) &&
+            !Module_Offline_get_device_status(chassis_motors[2]->base.offline_dev) &&
+            !Module_Offline_get_device_status(chassis_motors[3]->base.offline_dev))
+        {
+            if (chassis_cmd->chassis_mode == chassis_zero_force)
+            {
+                Motor_DJI_Stop(chassis_motors[0]);
+                Motor_DJI_Stop(chassis_motors[1]);
+                Motor_DJI_Stop(chassis_motors[2]);
+                Motor_DJI_Stop(chassis_motors[3]);
+            }
+            else
+            {
+                Motor_DJI_Start(chassis_motors[0]);
+                Motor_DJI_Start(chassis_motors[1]);
+                Motor_DJI_Start(chassis_motors[2]);
+                Motor_DJI_Start(chassis_motors[3]);
+            }
+
+                    // 根据控制模式设定旋转速度
+            switch (chassis_cmd->chassis_mode)
+            {
+            case chassis_rotate_reverse: // 自旋反转,同时保持全向机动
+                chassis_wz = -chassis_cmd->wz;
+                break;
+            case chassis_follow_gimbal_yaw: // 跟随云台
+                PIDCalculate(&chassis_follow_pid, -chassis_cmd->offset_angle, 0);
+                chassis_wz = chassis_follow_pid.Output;
+                break;
+            case chassis_rotate: // 自旋,同时保持全向机动
+                chassis_wz = chassis_cmd->wz;
+                break;
+            default:
+                break;
+            }
+                    // 根据云台和底盘的角度offset将控制量映射到底盘坐标系上
+            // 底盘逆时针旋转为角度正方向;云台命令的方向以云台指向的方向为x,采用右手系
+            static float sin_theta, cos_theta;
+            float        total_angle_rad = chassis_cmd->offset_angle * DEGREE_2_RAD;
+            cos_theta                    = arm_cos_f32(total_angle_rad);
+            sin_theta                    = arm_sin_f32(total_angle_rad);
+            chassis_vx                   = chassis_cmd->vx * cos_theta - chassis_cmd->vy * sin_theta;
+            chassis_vy                   = chassis_cmd->vx * sin_theta + chassis_cmd->vy * cos_theta;
+
+            Chassis_Omni_Calc(chassis_motors, &chassis_diff_config, chassis_vx, chassis_vy, chassis_wz);
+
+
+        }
+        else
+        {
+            Motor_DJI_Stop(chassis_motors[0]);
+            Motor_DJI_Stop(chassis_motors[1]);
+            Motor_DJI_Stop(chassis_motors[2]);
+            Motor_DJI_Stop(chassis_motors[3]);
+        }
+    }
+
+}
