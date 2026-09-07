@@ -18,6 +18,7 @@ typedef struct
 {
     float wheel_base_x; /* 前后轮距 (m), X方向两轮中心距 */
     float wheel_base_y; /* 左右轮距 (m), Y方向两轮中心距 */
+    float chassis_radius; /* 底盘半径 (m) */
     float wheel_radius; /* 轮子半径 (m) */
     float decele_ratio; /* 驱动电机减速比 */
 } Chassis_Diff_Config_s;
